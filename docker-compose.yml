@@ -1,0 +1,13 @@
+services:
+  testing-api:
+    build: .
+    container_name: testing-api
+    restart: unless-stopped
+    ports:
+      - "13492:13492"
+    environment:
+      - TESTING_API_KEY=${TESTING_API_KEY:-change-me}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Pour l'extinction du serveur hôte, utiliser network_mode: host
+    # network_mode: host
