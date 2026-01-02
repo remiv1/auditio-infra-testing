@@ -9,10 +9,18 @@ services:
       - .env
     volumes:
       - ./.ssh/api-shutdown-key:/home/auditio-test/.ssh/api-shutdown-key:ro,Z
-      - ./logs:/app/logs
+      - logs:/app/logs
     networks:
       - auditio-net
 
 networks:
   auditio-net:
     driver: bridge
+
+volumes:
+  logs:
+    driver: local
+    driver_opts:
+      type: none
+      device: ./logs
+      o: bind

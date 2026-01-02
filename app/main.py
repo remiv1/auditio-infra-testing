@@ -10,19 +10,30 @@ from functions import verify_api_key
 from models import ShutdownResponse
 from logger import logger
 from parameters import COMMAND, SSH_USER, SSH_HOST
+from rout_projects import projects_routeur
 
 app = FastAPI(
     title="Testing Server API",
-    description="API pour la gestion du serveur de test",
+    description="API pour la gestion du serveur de test des projets clients.",
     version="1.0.0"
 )
+app.include_router(projects_routeur)
 
-@app.get("/health")
+@app.get("/health",
+         summary="Health Check",
+         tags=["Fonctions", "Général"],
+         description="Vérifie que l'API est opérationnelle.",
+         responses={200: {"description": "API opérationnelle"}})
 def health():
     """Health check endpoint."""
     return {"status": "ok"}
 
-@app.post("/api/shutdown", response_model=ShutdownResponse, dependencies=[Depends(verify_api_key)])
+@app.post("/api/shutdown",
+          summary="Éteindre le serveur de test",
+          tags=["Fonctions", "Général"],
+          description="Éteint le serveur de test.",
+          response_model=ShutdownResponse,
+          dependencies=[Depends(verify_api_key)])
 def shutdown_server():
     """
     Éteint le serveur de test.
@@ -67,12 +78,16 @@ def shutdown_server():
         raise HTTPException(status_code=500, detail=message) from e
 
 @app.post("/api/shutdown/now",
+          summary="Éteindre le serveur immédiatement",
+          tags=["Fonctions", "Général"],
+          description="Éteint le serveur immédiatement.",
           response_model=ShutdownResponse,
           dependencies=[Depends(verify_api_key)])
 def shutdown_server_now():
     """
     Éteint le serveur immédiatement.
     Nécessite une clé API valide.
+    A n'utiliser qu'en cas d'urgence, privilégier la méthode programmée.
     """
     logger.warning("Requête d'extinction IMMÉDIATE reçue")
     try:
@@ -97,6 +112,9 @@ def shutdown_server_now():
         raise HTTPException(status_code=500, detail=f"Erreur lors de l'extinction: {e}") from e
 
 @app.post("/api/shutdown/cancel",
+          summary="Annuler une extinction programmée",
+          tags=["Fonctions", "Général"],
+          description="Annule une extinction programmée du serveur.",
           response_model=ShutdownResponse,
           dependencies=[Depends(verify_api_key)])
 def cancel_shutdown():

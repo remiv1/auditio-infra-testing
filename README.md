@@ -16,12 +16,24 @@ L'API est **sécurisée par clé API** et interagit directement avec Docker pour
 ## 🏗️ Structure
 
 ```ascii-art
-testing/
+auditio-infra-testing/
 ├── docker-compose.yml      # Orchestration du service API
 ├── Dockerfile              # Image Python 3.11 + FastAPI + Docker CLI
-├── main.py                 # API FastAPI (port 13492)
 ├── requirements.txt        # Dépendances Python
-└── README.md              # Ce fichier
+├── README.md               # Ce fichier
+├── app/                    # Toute l'application FastAPI
+│   ├── main.py             # API FastAPI (port 13492)
+│   ├── bp_projects.py      # Blueprint gestion des projets
+│   ├── current_projects.json # Liste et paramètres des projets
+│   ├── functions.py        # Fonctions utilitaires
+│   ├── logger.py           # Logger personnalisé
+│   ├── models.py           # Modèles Pydantic
+│   ├── parameters.py       # Paramètres globaux
+│   └── ...                 # Autres modules
+├── logs/                   # Logs applicatifs
+├── .ssh/                   # Clés SSH pour accès à l'hôte
+├── .gitignore              # Fichier gitignore
+└── .env.exemple            # Exemple de fichier d'environnement
 ```
 
 ## 🚀 Démarrage rapide
@@ -31,14 +43,14 @@ testing/
 ```bash
 # Copier le fichier d'environnement (à créer avec vos variables)
 cp .env.exemple .env
-# ou définir directement :
-export TESTING_API_KEY="votre-clé-secrète"
 ```
 
 ### 2. Lancer le service
 
 ```bash
-docker-compose up -d
+docker compose up -d
+# ou
+podman compose up -d
 ```
 
 ### 3. Vérifier
@@ -46,10 +58,6 @@ docker-compose up -d
 ```bash
 # Health check
 curl http://localhost:13492/health
-
-# Lister les projets (nécessite la clé API)
-curl -H "X-API-KEY: votre-clé-secrète" \
-  http://localhost:13492/api/projects
 ```
 
 ## 📚 API REST
@@ -58,164 +66,33 @@ curl -H "X-API-KEY: votre-clé-secrète" \
 
 Toutes les routes sauf `/health` nécessitent la clé API dans le header :
 
-```txt
-X-API-KEY: votre-clé-secrète
+```json
+{
+  "X-API-KEY": "votre-clé-secrète"
+}
 ```
 
 ### Routes
 
-#### `GET /health`
+[Voir section suivante pour la documentation automatique](### Documentation automatique de l'API)
+Principales routes disponibles :
+- Healthcheck du serveur
+- Extinction planifiée
+- Extinction immédiate
+- Annulation de l'extinction
+- Démarrage d'un projet
+- Healthcheck d'un projet (asynchrone)
+- Arrêt d'un projet
+- Liste des projets
 
-Health check du service.
+### Documentation automatique de l'API
 
-**Réponse :**
+Toutes les routes, paramètres, schémas et exemples de réponses sont accessibles via la documentation interactive générée par FastAPI :
 
-```json
-{
-  "status": "ok"
-}
-```
+- **Swagger UI** : [http://localhost:13492/docs](http://localhost:13492/docs)
+- **Redoc** : [http://localhost:13492/redoc](http://localhost:13492/redoc)
 
----
-
-#### `GET /api/projects`
-
-Liste tous les conteneurs Docker en cours d'exécution.
-
-**Headers requis :**
-
-```txt
-X-API-KEY: <clé-api>
-```
-
-**Réponse :**
-
-```json
-{
-  "count": 2,
-  "projects": [
-    {
-      "name": "client1-app",
-      "status": "Up 2 hours",
-      "ports": "3000->3000/tcp",
-      "image": "client1:latest"
-    },
-    {
-      "name": "client2-db",
-      "status": "Up 5 hours",
-      "ports": "5432->5432/tcp",
-      "image": "postgres:15"
-    }
-  ]
-}
-```
-
----
-
-#### `GET /api/projects/{name}`
-
-Récupère les informations détaillées d'un conteneur spécifique.
-
-**Paramètres :**
-
-- `name` (string) : nom du conteneur
-
-**Headers requis :**
-
-```txt
-X-API-KEY: <clé-api>
-```
-
-**Réponse (200) :**
-
-```json
-{
-  "name": "client1-app",
-  "status": "running",
-  "image": "client1:latest",
-  "started_at": "2026-01-01T10:30:00Z"
-}
-```
-
-**Erreur (404) :**
-
-```json
-{
-  "detail": "Projet 'client1-app' non trouvé"
-}
-```
-
----
-
-#### `POST /api/shutdown`
-
-Planifie l'extinction du serveur dans 1 minute. Permet au client API de recevoir la réponse avant extinction.
-
-**Headers requis :**
-
-```txt
-X-API-KEY: <clé-api>
-```
-
-**Réponse :**
-
-```json
-{
-  "status": "scheduled",
-  "message": "Extinction programmée dans 1 minute"
-}
-```
-
----
-
-#### `POST /api/shutdown/now`
-
-Éteint le serveur immédiatement.
-
-**Headers requis :**
-
-```txt
-X-API-KEY: <clé-api>
-```
-
-**Réponse :**
-
-```json
-{
-  "status": "initiated",
-  "message": "Extinction immédiate initiée"
-}
-```
-
----
-
-#### `POST /api/shutdown/cancel`
-
-Annule une extinction programmée.
-
-**Headers requis :**
-
-```txt
-X-API-KEY: <clé-api>
-```
-
-**Réponse (extinction annulée) :**
-
-```json
-{
-  "status": "cancelled",
-  "message": "Extinction annulée"
-}
-```
-
-**Réponse (aucune extinction en cours) :**
-
-```json
-{
-  "status": "no_shutdown",
-  "message": "Aucune extinction programmée à annuler"
-}
-```
+La documentation est toujours à jour avec le code et permet de tester les endpoints directement depuis l'interface web.
 
 ## 🔐 Sécurité
 
