@@ -3,13 +3,11 @@ API FastAPI pour la gestion du serveur Testing.
 Permet l'extinction du serveur et la récupération des projets en cours.
 """
 
-import os
 import subprocess
 import logging
-from typing import List, Optional
-
-from fastapi import FastAPI, HTTPException, Header, Depends
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Depends
+from functions import verify_api_key
+from models import ShutdownResponse, ProjectsResponse, ProjectInfo
 
 # Configuration du logging
 logging.basicConfig(
@@ -23,36 +21,6 @@ app = FastAPI(
     description="API pour la gestion du serveur de test",
     version="1.0.0"
 )
-
-API_KEY = os.environ.get("TESTING_API_KEY", "change-me")
-
-
-def verify_api_key(x_api_key: str = Header(...)):
-    """Vérifie la clé API."""
-    if x_api_key != API_KEY:
-        logger.warning(f"Tentative d'accès avec clé API invalide")
-        raise HTTPException(status_code=403, detail="Clé API invalide")
-    return True
-
-
-class ProjectInfo(BaseModel):
-    """Informations sur un projet Docker."""
-    name: str
-    status: str
-    ports: Optional[str] = None
-    image: Optional[str] = None
-
-
-class ShutdownResponse(BaseModel):
-    """Réponse de la route shutdown."""
-    status: str
-    message: str
-
-
-class ProjectsResponse(BaseModel):
-    """Réponse de la route projects."""
-    count: int
-    projects: List[ProjectInfo]
 
 
 @app.get("/health")
@@ -70,18 +38,23 @@ def shutdown_server():
     logger.info("Requête d'extinction reçue (programmée +1 min)")
     try:
         # Planifier l'extinction dans 1 minute pour permettre la réponse HTTP
-        subprocess.Popen(["shutdown", "-h", "+1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["shutdown", "-h", "+1"],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
         logger.info("Extinction programmée avec succès pour dans 1 minute")
         return ShutdownResponse(
             status="scheduled",
             message="Extinction programmée dans 1 minute"
         )
     except Exception as e:
-        logger.error(f"Erreur lors de la planification de l'extinction: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de la planification de l'extinction: {e}")
+        message = f"Erreur lors de la planification de l'extinction: {e}"
+        logger.error(message)
+        raise HTTPException(status_code=500, detail=message) from e
 
 
-@app.post("/api/shutdown/now", response_model=ShutdownResponse, dependencies=[Depends(verify_api_key)])
+@app.post("/api/shutdown/now",
+          response_model=ShutdownResponse,
+          dependencies=[Depends(verify_api_key)])
 def shutdown_server_now():
     """
     Éteint le serveur immédiatement.
@@ -89,18 +62,23 @@ def shutdown_server_now():
     """
     logger.warning("Requête d'extinction IMMÉDIATE reçue")
     try:
-        subprocess.Popen(["shutdown", "-h", "now"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["shutdown", "-h", "now"],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
         logger.info("Extinction immédiate initiée")
         return ShutdownResponse(
             status="initiated",
             message="Extinction immédiate initiée"
         )
     except Exception as e:
-        logger.error(f"Erreur lors de l'extinction: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur lors de l'extinction: {e}")
+        message = f"Erreur lors de l'extinction: {e}"
+        logger.error(message)
+        raise HTTPException(status_code=500, detail=message) from e
 
 
-@app.post("/api/shutdown/cancel", response_model=ShutdownResponse, dependencies=[Depends(verify_api_key)])
+@app.post("/api/shutdown/cancel",
+          response_model=ShutdownResponse,
+          dependencies=[Depends(verify_api_key)])
 def cancel_shutdown():
     """
     Annule une extinction programmée.
@@ -121,10 +99,11 @@ def cancel_shutdown():
             message="Aucune extinction programmée à annuler"
         )
     except Exception as e:
-        logger.error(f"Erreur lors de l'annulation: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {e}")
+        message = f"Erreur lors de l'annulation de l'extinction: {e}"
+        logger.error(message)
+        raise HTTPException(status_code=500, detail=message) from e
 
-
+#TODO: Refaire la fonction sans pouvoir utiliser l'API Docker Python (Podman sur serveur de test)
 @app.get("/api/projects", response_model=ProjectsResponse, dependencies=[Depends(verify_api_key)])
 def list_projects():
     """
@@ -139,7 +118,7 @@ def list_projects():
             text=True,
             check=True
         )
-        
+
         projects = []
         for line in result.stdout.strip().split("\n"):
             if line:
@@ -150,16 +129,18 @@ def list_projects():
                     ports=parts[2] if len(parts) > 2 else None,
                     image=parts[3] if len(parts) > 3 else None
                 ))
-        
-        logger.info(f"Liste des projets retournée: {len(projects)} conteneur(s)")
+        message = f"Liste des projets retournée: {len(projects)} conteneur(s)"
+        logger.info(message)
         return ProjectsResponse(count=len(projects), projects=projects)
-    
+
     except subprocess.CalledProcessError as e:
-        logger.error(f"Erreur Docker: {e.stderr}")
-        raise HTTPException(status_code=500, detail=f"Erreur Docker: {e.stderr}")
+        message = f"Erreur lors de l'exécution de la commande Docker: {e.stderr}"
+        logger.error(message)
+        raise HTTPException(status_code=500, detail=message) from e
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération des projets: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {e}")
+        message = f"Erreur lors de la récupération des projets: {e}"
+        logger.error(message)
+        raise HTTPException(status_code=500, detail=message) from e
 
 
 @app.get("/api/projects/{name}")
@@ -168,7 +149,8 @@ def get_project(name: str, _: bool = Depends(verify_api_key)):
     Récupère les informations d'un projet spécifique.
     Nécessite une clé API valide.
     """
-    logger.info(f"Requête d'informations pour le projet: {name}")
+    message = f"Récupération des informations pour le projet: {name}"
+    logger.info(message)
     try:
         result = subprocess.run(
             ["docker", "inspect", name, "--format", 
@@ -177,7 +159,7 @@ def get_project(name: str, _: bool = Depends(verify_api_key)):
             text=True,
             check=True
         )
-        
+
         parts = result.stdout.strip().split("|")
         project_info = {
             "name": parts[0].lstrip("/") if len(parts) > 0 else name,
@@ -185,15 +167,18 @@ def get_project(name: str, _: bool = Depends(verify_api_key)):
             "image": parts[2] if len(parts) > 2 else None,
             "started_at": parts[3] if len(parts) > 3 else None
         }
-        logger.info(f"Informations du projet {name} retournées")
+        message = f"Informations du projet '{name}' récupérées avec succès"
+        logger.info(message)
         return project_info
-    
-    except subprocess.CalledProcessError:
-        logger.warning(f"Projet '{name}' non trouvé")
-        raise HTTPException(status_code=404, detail=f"Projet '{name}' non trouvé")
+
+    except subprocess.CalledProcessError as e:
+        message = f"Projet '{name}' non trouvé"
+        logger.warning(message)
+        raise HTTPException(status_code=404, detail=message) from e
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération du projet {name}: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur: {e}")
+        message = f"Erreur lors de la récupération du projet {name}: {e}"
+        logger.error(message)
+        raise HTTPException(status_code=500, detail=message) from e
 
 
 if __name__ == "__main__":
