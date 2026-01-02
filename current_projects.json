@@ -1,0 +1,14 @@
+[
+  {
+    "name": "project-name",
+    "folder": "folder-project",
+    "param": {
+      "specific_compose": null,
+      "containerizer": "podman",
+      "nb_containers": 2,
+      "database": true
+    },
+    "running": true,
+    "pod_port": 15001
+  }
+]

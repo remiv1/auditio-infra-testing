@@ -5,6 +5,14 @@ services:
     restart: unless-stopped
     ports:
       - "13492:13492"
-    environment:
-      - TESTING_API_KEY=${TESTING_API_KEY:-change-me}
-    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./.ssh/api-shutdown-key:/home/auditio-test/.ssh/api-shutdown-key:ro,Z
+      - ./logs:/app/logs
+    networks:
+      - auditio-net
+
+networks:
+  auditio-net:
+    driver: bridge
