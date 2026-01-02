@@ -4,7 +4,7 @@ Module des fonctions utilitaires.
 
 import os
 from fastapi import HTTPException, Header
-from main import logger
+from logger import logger
 
 API_KEY = os.environ.get("TESTING_API_KEY", "change-me")
 

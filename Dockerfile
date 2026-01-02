@@ -4,13 +4,16 @@ WORKDIR /app
 
 # Installer Docker CLI pour interagir avec les conteneurs
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    docker.io \
+    docker.io openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY main.py .
+COPY models.py .
+COPY functions.py .
+COPY logger.py .
 
 EXPOSE 13492
 

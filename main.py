@@ -4,17 +4,10 @@ Permet l'extinction du serveur et la récupération des projets en cours.
 """
 
 import subprocess
-import logging
 from fastapi import FastAPI, HTTPException, Depends
 from functions import verify_api_key
 from models import ShutdownResponse, ProjectsResponse, ProjectInfo
-
-# Configuration du logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from logger import logger
 
 app = FastAPI(
     title="Testing Server API",
@@ -47,7 +40,8 @@ def shutdown_server():
         ssh_user = "auditio-test"  # À adapter
         ssh_host = "localhost"  # À adapter si besoin
         ssh_command = [
-            "ssh", f"{ssh_user}@{ssh_host}", "sudo", "/sbin/shutdown", "-h", "+1"
+            "ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no",
+            f"{ssh_user}@{ssh_host}", "sudo", "/sbin/shutdown", "-h", "+1"
         ]
         subprocess.Popen(
             ssh_command,
@@ -79,7 +73,8 @@ def shutdown_server_now():
         ssh_user = "auditio-test"  # À adapter
         ssh_host = "localhost"  # À adapter si besoin
         ssh_command = [
-            "ssh", f"{ssh_user}@{ssh_host}", "sudo", "/sbin/shutdown", "-h", "now"
+            "ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no",
+            f"{ssh_user}@{ssh_host}", "sudo", "/sbin/shutdown", "-h", "now"
         ]
         subprocess.Popen(
             ssh_command,
@@ -110,7 +105,8 @@ def cancel_shutdown():
         ssh_user = "auditio-test"  # À adapter
         ssh_host = "localhost"  # À adapter si besoin
         ssh_command = [
-            "ssh", f"{ssh_user}@{ssh_host}", "sudo", "/sbin/shutdown", "-c"
+            "ssh", "-o", "UserKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no",
+            f"{ssh_user}@{ssh_host}", "sudo", "/sbin/shutdown", "-c"
         ]
         result = subprocess.run(
             ssh_command,
