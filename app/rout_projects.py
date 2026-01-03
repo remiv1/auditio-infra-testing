@@ -1,10 +1,15 @@
 """API endpoint to start a project using Podman or Docker Compose ou encore K8S."""
 
+import hashlib
+import os
+from os.path import dirname, join
 import json
 from typing import Dict, Any
+import asyncio
 import subprocess
 import httpx
-from fastapi import APIRouter, HTTPException
+import aiofiles
+from fastapi import APIRouter, HTTPException, Request
 from models import Project
 from parameters import PROJECTS_JSON
 
@@ -35,11 +40,11 @@ def start_project(project_name: str):
                             detail=f"Erreur lancement compose (SSH): {e.stderr}") from e
 
 @projects_routeur.get("/api/projects/{project_name}/health",
-                      summary="Vérifier la santé d'un projet",
-                      description="Vérifie la santé d'un projet en interrogeant son endpoint /health.",
-                      tags=["Projects"],
-                      responses={200: {"description": "Projet en bonne santé"},
-                                 503: {"description": "Projet non healthy ou inaccessible"}})
+    summary="Vérifier la santé d'un projet",
+    description="Vérifie la santé d'un projet en interrogeant son endpoint /health.",
+    tags=["Projects"],
+    responses={200: {"description": "Projet en bonne santé"},
+                503: {"description": "Projet non healthy ou inaccessible"}})
 async def check_project_health(project_name: str):
     """
     Vérifie la santé d'un projet en interrogeant son endpoint /health.
@@ -63,11 +68,11 @@ async def check_project_health(project_name: str):
         raise HTTPException(status_code=503, detail=message) from e
 
 @projects_routeur.get("/api/projects",
-                      summary="Lister les projets",
-                      description="Retourne la liste des projets définis dans current_projects.json.",
-                      tags=["Projects"],
-                      responses={200: {"description": "Liste des projets récupérée avec succès"},
-                                 500: {"description": "Erreur lors de la récupération de la liste des projets"}})
+    summary="Lister les projets",
+    description="Retourne la liste des projets définis dans current_projects.json.",
+    tags=["Projects"],
+    responses={200: {"description": "Liste des projets récupérée avec succès"},
+                500: {"description": "Erreur lors de la récupération de la liste des projets"}})
 def list_projects() -> Dict[str, Any]:
     """
     Retourne la liste des projets définis dans current_projects.json.
@@ -80,11 +85,11 @@ def list_projects() -> Dict[str, Any]:
     return {"count": len(projects), "projects": projects}
 
 @projects_routeur.post("/api/projects/{project_name}/stop",
-                       summary="Arrêter un projet",
-                      description="Arrête le projet spécifié via SSH (podman/docker compose down ou équivalent).",
-                      tags=["Projects"],
-                      responses={200: {"description": "Projet arrêté avec succès"},
-                                 500: {"description": "Erreur lors de l'arrêt du projet"}})
+    summary="Arrêter un projet",
+    description="Arrête le projet spécifié via SSH (podman/docker compose down ou équivalent).",
+    tags=["Projects"],
+    responses={200: {"description": "Projet arrêté avec succès"},
+                500: {"description": "Erreur lors de l'arrêt du projet"}})
 def stop_project(project_name: str):
     """
     Arrête le projet spécifié via SSH (podman/docker compose down ou équivalent).
@@ -97,3 +102,54 @@ def stop_project(project_name: str):
     except subprocess.CalledProcessError as e:
         message = f"Erreur arrêt compose (SSH): {e.stderr}"
         raise HTTPException(status_code=500, detail=message) from e
+
+@projects_routeur.post("/api/projects/sync",
+    summary="Synchroniser la configuration des projets",
+    description="Remplace config projets si JSON reçu différent, puis génération des services.",
+    tags=["Projects"],
+    responses={200: {"description": "Configuration synchronisée et services régénérés"},
+               304: {"description": "Aucun changement détecté"},
+               500: {"description": "Erreur lors de la synchronisation"}})
+async def sync_projects(request: Request):
+    """
+    Reçoit un JSON de projets, le compare à l'existant, l'enregistre si différent,
+    et lance le script de régénération.
+    """
+    try:
+        new_json = await request.json()
+        new_json_str = json.dumps(new_json, sort_keys=True, ensure_ascii=False)
+        new_hash = hashlib.sha256(new_json_str.encode("utf-8")).hexdigest()
+
+        # Lire l'existant
+        if os.path.exists(PROJECTS_JSON):
+            async with aiofiles.open(PROJECTS_JSON, "r", encoding="utf-8") as f:
+                old_json_str = await f.read()
+                old_json = json.loads(old_json_str)
+            old_json_str = json.dumps(old_json, sort_keys=True, ensure_ascii=False)
+            old_hash = hashlib.sha256(old_json_str.encode("utf-8")).hexdigest()
+        else:
+            old_hash = None
+
+        if new_hash == old_hash:
+            return {"status": "no_change", "message": "Aucun changement détecté."}, 304
+
+        # Écrire le nouveau JSON
+        async with aiofiles.open(PROJECTS_JSON, "w", encoding="utf-8") as f:
+            await f.write(new_json_str)
+
+        # Lancer le script de régénération
+        script_path = join(dirname(dirname(__file__)),
+                           "utilitaires",
+                           "rebuild-testing-services.sh")
+        process = await asyncio.create_subprocess_exec(
+            "sudo", script_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        _, stderr = await process.communicate()
+        if process.returncode != 0:
+            raise RuntimeError(stderr.decode())
+
+        return {"status": "updated", "message": "Configuration synchronisée et services régénérés."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur synchronisation projets: {e}") from e

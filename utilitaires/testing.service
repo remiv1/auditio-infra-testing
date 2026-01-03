@@ -1,0 +1,12 @@
+[Unit]
+Description=Service pour lancer podman compose up --build dans le dossier du projet
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/auditio-test/auditio-infra-testing
+ExecStart=/usr/bin/podman compose up --build
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

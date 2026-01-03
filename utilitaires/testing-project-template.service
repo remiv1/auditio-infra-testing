@@ -1,0 +1,14 @@
+[Unit]
+Description=Service dynamique pour projet client {project}
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory={project_path}
+Environment=EXTERNAL_PORT={external_port}
+ExecStart={exec_start}
+ExecStop={exec_stop}
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

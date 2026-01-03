@@ -10,6 +10,7 @@ services:
     volumes:
       - ./.ssh/api-shutdown-key:/home/auditio-test/.ssh/api-shutdown-key:ro,Z
       - logs:/app/logs
+      - ./app/current_projects.json:/app/current_projects.json:rw,Z
     networks:
       - auditio-net
 

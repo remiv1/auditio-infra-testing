@@ -45,7 +45,22 @@ auditio-infra-testing/
 cp .env.exemple .env
 ```
 
-### 2. Lancer le service
+### 2. Installation du service systemd
+
+Pour automatiser le lancement de la plateforme au démarrage du serveur :
+
+```bash
+# Copier le service dans /etc/systemd/system
+sudo cp utilitaires/testing.service /etc/systemd/system/
+
+# Recharger systemd et activer le service
+sudo systemctl daemon-reload
+sudo systemctl enable --now testing.service
+```
+
+Le service lancera automatiquement `podman compose up --build` dans le dossier du projet à chaque démarrage.
+
+### 3. Lancer le service manuellement (optionnel)
 
 ```bash
 docker compose up -d
@@ -53,7 +68,7 @@ docker compose up -d
 podman compose up -d
 ```
 
-### 3. Vérifier
+### 4. Vérifier
 
 ```bash
 # Health check
@@ -74,8 +89,9 @@ Toutes les routes sauf `/health` nécessitent la clé API dans le header :
 
 ### Routes
 
-[Voir section suivante pour la documentation automatique](### Documentation automatique de l'API)
+Voir [section suivante](### Documentation automatique de l'API) pour la documentation automatique
 Principales routes disponibles :
+
 - Healthcheck du serveur
 - Extinction planifiée
 - Extinction immédiate
@@ -102,18 +118,13 @@ La documentation est toujours à jour avec le code et permet de tester les endpo
 - Par défaut : `change-me` (⚠️ à remplacer en production)
 - Utilisée pour authentifier tous les appels API sauf `/health`
 
-### Accès Docker
-
-- Le conteneur API a accès au socket Docker du hôte (`/var/run/docker.sock`)
-- Permet d'interroger et contrôler les conteneurs
-- ⚠️ Assurer que seules les requêtes autorisées peuvent accéder à l'API
-
 ### Network (optionnel)
 
-- Par défaut : mode bridge (accessible sur le port 13492)
-- Pour extinction du hôte : décommenter `network_mode: host` dans docker-compose.yml
+- Réseau Podman dédié pour isoler le service
+- Configuration de pare-feu pour restreindre l'accès au port 13492
+- Accès par rebond SSH à l'hôte pour lancer les commandes sur l'hôte.
 
-## 🐳 Infrastructure Docker
+## 🐳 Infrastructure Podman
 
 ### Service `testing-api`
 
@@ -121,28 +132,28 @@ La documentation est toujours à jour avec le code et permet de tester les endpo
 - **Port** : 13492 (interne) → 13492 (hôte)
 - **Redémarrage** : automatically (unless-stopped)
 - **Variables d'environnement** :
-  - `TESTING_API_KEY` : clé API
-- **Volumes** : accès au socket Docker
+  - dans le `.env`
 
 ### Commandes utiles
 
 ```bash
 # Logs de l'API
-docker-compose logs -f testing-api
+podman compose logs -f testing-api
 
 # Arrêter le service
-docker-compose down
+podman compose down
 
 # Reconstruire l'image
-docker-compose build --no-cache
+podman compose build --no-cache
 
 # Vérifier les conteneurs gérés par l'API
-docker ps
+podman ps
 ```
 
 ## 🔌 Intégration avec Hall
 
 Le serveur Testing est mis en veille/réveil par le système **Hall** selon les politiques configurées.
+Communication par le port configuré (13492) et l'API REST.
 
 ### Configuration Hall
 
@@ -174,14 +185,14 @@ Dans `hall/config/domains.json` :
 3. Hall envoie un **Wake-on-LAN** (WoL)
 4. Serveur démarre, conteneurs lancent
 5. Hall affiche une **page d'attente** avec polling
-6. Quand l'API répond `/health` → redirection automatique
+6. Quand l'API répond `/health` → redirection automatique après authentification
 7. Après inactivité → Hall planifie extinction via `/api/shutdown`
 
 ## 🛠️ Technologies
 
 - **FastAPI** : Framework web Python haute performance
 - **Uvicorn** : Serveur WSGI/ASGI
-- **Docker** : Orchestration et gestion des conteneurs
+- **Podman** : Orchestration et gestion des conteneurs
 - **Python 3.11** : Runtime léger
 
 ## 📊 Monitoring
@@ -190,10 +201,10 @@ Dans `hall/config/domains.json` :
 
 ```bash
 # En temps réel
-docker-compose logs -f
+podman compose logs -f testing-api
 
 # Derniers N lignes
-docker-compose logs --tail=50
+podman compose logs --tail=50 testing-api
 ```
 
 ### Health check
@@ -219,11 +230,17 @@ L'endpoint `/health` peut être utilisé pour :
 ### Variables disponibles
 
 - `TESTING_API_KEY` : clé API (défaut : `change-me`)
+- `SSH_USER` : utilisateur SSH pour accéder à l'hôte (défaut : `user`)
+- `SSH_HOST` : adresse IP ou hostname de l'hôte (défaut : `localhost`)
+
+> **avec podman**: *``SSH_HOST`` doit être host.container.internal*
+> **avec docker**: *``SSH_HOST`` doit être host.docker.internal*
 
 ### Exemple .env
 
 ```conf
 TESTING_API_KEY=super-secret-key-12345
+...
 ```
 
 ## 📚 Voir aussi
