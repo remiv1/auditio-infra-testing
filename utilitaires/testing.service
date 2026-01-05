@@ -7,8 +7,10 @@ Requires=podman.socket
 Type=simple
 User=auditio-test
 WorkingDirectory=/home/auditio-test/auditio-infra-testing
+ExecStartPre=/bin/sleep 5
 ExecStart=podman compose up --build
-Restart=no
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target

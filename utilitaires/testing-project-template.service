@@ -1,6 +1,7 @@
 [Unit]
 Description=Service dynamique pour projet client {project}
-After=network.target
+After=network.target podman.socket
+Requires=podman.socket
 
 [Service]
 Type=simple
@@ -9,7 +10,8 @@ WorkingDirectory={project_path}
 Environment=EXTERNAL_PORT={external_port}
 ExecStart={exec_start}
 ExecStop={exec_stop}
-Restart=always
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target

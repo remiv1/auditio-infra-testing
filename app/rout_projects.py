@@ -2,16 +2,16 @@
 
 import hashlib
 import os
-from os.path import dirname, join
 import json
 from typing import Dict, Any
 import asyncio
 import subprocess
 import httpx
 import aiofiles
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Depends
 from models import Project
-from parameters import PROJECTS_JSON, TESTING_API_KEY
+from parameters import PROJECTS_JSON, TESTING_API_KEY, SSH_USER, SSH_HOST
+from functions import verify_api_key
 
 projects_routeur = APIRouter()
 
@@ -109,7 +109,8 @@ def stop_project(project_name: str):
     tags=["Projects"],
     responses={200: {"description": "Configuration synchronisée et services régénérés"},
                304: {"description": "Aucun changement détecté"},
-               500: {"description": "Erreur lors de la synchronisation"}})
+               500: {"description": "Erreur lors de la synchronisation"}},
+    dependencies=[Depends(verify_api_key)])
 async def sync_projects(request: Request):
     """
     Reçoit un JSON de projets, le compare à l'existant, l'enregistre si différent,
@@ -125,6 +126,10 @@ async def sync_projects(request: Request):
         new_json_str = json.dumps(new_json, sort_keys=True, ensure_ascii=False)
         new_hash = hashlib.sha256(new_json_str.encode("utf-8")).hexdigest()
 
+        # Ajout de logs pour débogage
+        print("Nouveau JSON reçu :", new_json)
+        print("Hash du nouveau JSON :", new_hash)
+
         # Lire l'existant
         if os.path.exists(PROJECTS_JSON):
             async with aiofiles.open(PROJECTS_JSON, "r", encoding="utf-8") as f:
@@ -132,29 +137,43 @@ async def sync_projects(request: Request):
                 old_json = json.loads(old_json_str)
             old_json_str = json.dumps(old_json, sort_keys=True, ensure_ascii=False)
             old_hash = hashlib.sha256(old_json_str.encode("utf-8")).hexdigest()
+
+            # Ajout de logs pour débogage
+            print("JSON existant :", old_json)
+            print("Hash de l'ancien JSON :", old_hash)
         else:
             old_hash = None
+            print("Aucun fichier JSON existant trouvé.")
 
         if new_hash == old_hash:
+            print("Aucun changement détecté entre les JSON.")
             return {"status": "no_change", "message": "Aucun changement détecté."}, 304
 
         # Écrire le nouveau JSON
         async with aiofiles.open(PROJECTS_JSON, "w", encoding="utf-8") as f:
             await f.write(new_json_str)
+            print("Nouveau JSON écrit dans le fichier.")
 
         # Lancer le script de régénération
-        script_path = join(dirname(dirname(__file__)),
-                           "utilitaires",
-                           "rebuild-testing-services.sh")
+        # Exécution du script via SSH sur l'hôte
+        ssh_command = [
+            "ssh", f"{SSH_USER}@{SSH_HOST}", "-i", "/home/auditio-test/.ssh/api-shutdown-key",
+            "-o", "UserKnownHostsFile=/dev/null",
+            "-o", "StrictHostKeyChecking=no",
+            "sudo", "/home/auditio-test/auditio-infra-testing/utilitaires/rebuild-testing-services.sh"
+        ]
         process = await asyncio.create_subprocess_exec(
-            "sudo", script_path,
+            *ssh_command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE
         )
-        _, stderr = await process.communicate()
+        stdout, stderr = await process.communicate()
+        print("Sortie standard du script :", stdout.decode())
+        print("Erreur standard du script :", stderr.decode())
         if process.returncode != 0:
             raise RuntimeError(stderr.decode())
 
         return {"status": "updated", "message": "Configuration synchronisée et services régénérés."}
     except Exception as e:
+        print("Erreur lors de la synchronisation des projets :", e)
         raise HTTPException(status_code=500, detail=f"Erreur synchronisation projets: {e}") from e

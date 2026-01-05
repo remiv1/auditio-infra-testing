@@ -1,14 +1,1 @@
-[
-  {
-    "name": "project-name",
-    "folder": "folder-project",
-    "param": {
-      "specific_compose": null,
-      "containerizer": "podman",
-      "nb_containers": 2,
-      "database": true
-    },
-    "running": true,
-    "pod_port": 15001
-  }
-]
+[{"folder": "head", "name": "head", "param": {"containerizer": "podman", "database": false, "nb_containers": 1, "specific_compose": "docker-compose.yaml"}, "pod_port": 15001, "running": true}]

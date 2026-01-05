@@ -56,7 +56,8 @@ for proj in $projects; do
 
   svc_name="testing-$name.service"
   svc_path="$SYSTEMD_DIR/$svc_name"
-  sed "s/{project}/$name/g; s#{project_path}#$PROJECT_ROOT/app/$folder#g; s/{external_port}/$port/g; s#{exec_start}#$exec_start#g; s#{exec_stop}#$exec_stop#g" "$TEMPLATE" > "$svc_path"
+  # Correction du chemin pour le dossier du projet
+  sed "s/{project}/$name/g; s#{project_path}#/home/auditio-test/Projects/$folder#g; s/{external_port}/$port/g; s#{exec_start}#$exec_start#g; s#{exec_stop}#$exec_stop#g" "$TEMPLATE" > "$svc_path"
   systemctl daemon-reload
   systemctl enable "$svc_name"
   echo "Service $svc_name généré et activé (non démarré)."
