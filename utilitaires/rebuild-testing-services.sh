@@ -44,6 +44,10 @@ for proj in $projects; do
       exec_start="/usr/bin/kubectl apply -f $compose_path"
       exec_stop="/usr/bin/kubectl delete -f $compose_path"
       ;;
+    k8s)
+      exec_start="/usr/bin/kubectl apply -f $compose_path"
+      exec_stop="/usr/bin/kubectl delete -f $compose_path"
+      ;;
     *)
       echo "Containerizer inconnu pour $name : $containerizer"
       continue

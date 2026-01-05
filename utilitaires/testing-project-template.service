@@ -4,6 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
+User=auditio-test
 WorkingDirectory={project_path}
 Environment=EXTERNAL_PORT={external_port}
 ExecStart={exec_start}

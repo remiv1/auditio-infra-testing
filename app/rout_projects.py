@@ -11,7 +11,7 @@ import httpx
 import aiofiles
 from fastapi import APIRouter, HTTPException, Request
 from models import Project
-from parameters import PROJECTS_JSON
+from parameters import PROJECTS_JSON, TESTING_API_KEY
 
 projects_routeur = APIRouter()
 
@@ -115,6 +115,11 @@ async def sync_projects(request: Request):
     Reçoit un JSON de projets, le compare à l'existant, l'enregistre si différent,
     et lance le script de régénération.
     """
+    # Vérification du token API
+    api_key = request.headers.get("x-api-key")
+    if not api_key or api_key != TESTING_API_KEY:
+        raise HTTPException(status_code=403, detail="Clé API manquante ou invalide.")
+
     try:
         new_json = await request.json()
         new_json_str = json.dumps(new_json, sort_keys=True, ensure_ascii=False)
