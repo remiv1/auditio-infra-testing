@@ -3,7 +3,7 @@
 import hashlib
 import os
 import json
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import subprocess
 import httpx
@@ -21,30 +21,69 @@ projects_routeur = APIRouter()
                     tags=["Projects"],
                     responses={200: {"description": "Projet démarré avec succès"},
                                 500: {"description": "Erreur lors du démarrage du projet"}})
-def start_project(project_name: str):
+async def start_project(project_name: str, restart: Optional[bool] = False):
     """
     Démarrer un projet en utilisant Podman ou Docker Compose ou K8S.
     Nécessite que le projet soit défini dans current_projects.json.
     Vérifie la santé du projet via /health après le démarrage.
     """
-    project_object = Project(project_name=project_name)
+    print(f"Démarrage du projet : {project_name}")
 
-    ssh_command = project_object.get_ssh_cmd()
+    # Étape 1 : Lancer le script de régénération via SSH
+    ssh_command = [
+        "ssh", f"{SSH_USER}@{SSH_HOST}", "-i", "/home/auditio-test/.ssh/api-shutdown-key",
+        "-o", "UserKnownHostsFile=/dev/null",
+        "-o", "StrictHostKeyChecking=no",
+        "sudo", "/home/auditio-test/auditio-infra-testing/utilitaires/add-network-and-run.sh",
+        project_name
+    ]
     try:
-        subprocess.run(ssh_command, capture_output=True, text=True, check=True)
+        process = await asyncio.create_subprocess_exec(
+            *ssh_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        print("Sortie standard du script :", stdout.decode())
+        print("Erreur standard du script :", stderr.decode())
+        if process.returncode != 0:
+            raise HTTPException(status_code=500,
+                                detail=f"Erreur lors de l'exécution du script : {stderr.decode()}")
+    except Exception as e:
+        raise HTTPException(status_code=500,
+                            detail=f"Erreur lors de l'exécution du script : {e}") from e
+
+    # Étape 2 : Démarrer le projet
+    project_object = Project(project_name=project_name)
+    if not restart:
+        restart = False
+    ssh_command = project_object.get_ssh_cmd(restart=restart)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *ssh_command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        print("Sortie standard du démarrage :", stdout.decode())
+        print("Erreur standard du démarrage :", stderr.decode())
+        if process.returncode != 0:
+            raise HTTPException(status_code=500,
+                                detail=f"Erreur lancement compose (SSH): {stderr.decode()}")
         return {"status": "starting",
                 "message": f"Démarrage du projet {project_name} en cours"
                 }, 200
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
         raise HTTPException(status_code=500,
-                            detail=f"Erreur lancement compose (SSH): {e.stderr}") from e
+            detail=f"Erreur lancement compose (SSH): {e}\n" \
+                    + f"Commande SSH: {' '.join(ssh_command)}") from e
 
 @projects_routeur.get("/api/projects/{project_name}/health",
     summary="Vérifier la santé d'un projet",
     description="Vérifie la santé d'un projet en interrogeant son endpoint /health.",
-    tags=["Projects"],
     responses={200: {"description": "Projet en bonne santé"},
-                503: {"description": "Projet non healthy ou inaccessible"}})
+                503: {"description": "Projet non healthy ou inaccessible"}},
+    tags=["Projects"])
 async def check_project_health(project_name: str):
     """
     Vérifie la santé d'un projet en interrogeant son endpoint /health.
@@ -54,9 +93,10 @@ async def check_project_health(project_name: str):
     """
     project_object = Project(project_name=project_name)
     pod_port = project_object.pod_port
+    main_container = project_object.param.get("main_container", "app")
     if not pod_port:
         raise HTTPException(status_code=400, detail="Projet sans port défini")
-    health_url = f"http://localhost:{pod_port}/health"
+    health_url = f"http://{main_container}:{pod_port}/health"
     try:
         async with httpx.AsyncClient() as client:
             r = await client.get(health_url, timeout=2)
@@ -64,7 +104,7 @@ async def check_project_health(project_name: str):
             return {"status": "healthy"}
         raise HTTPException(status_code=503, detail="Projet non healthy")
     except Exception as e:
-        message = f"Erreur accès au projet: {e}"
+        message = f"Erreur accès au projet: {e}. Requête URL: {health_url}"
         raise HTTPException(status_code=503, detail=message) from e
 
 @projects_routeur.get("/api/projects",

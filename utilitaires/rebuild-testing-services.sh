@@ -25,9 +25,9 @@ for proj in $projects; do
 
   # Déterminer le chemin du compose
   if [ "$compose" != "null" ] && [ -n "$compose" ]; then
-    compose_path="$PROJECT_ROOT/app/$folder/$compose"
+    compose_path="/home/auditio-test/Projects/$folder/$compose"
   else
-    compose_path="$PROJECT_ROOT/app/$folder/docker-compose.yml"
+    compose_path="/home/auditio-test/Projects/$folder/docker-compose.yml"
   fi
 
   # Déterminer la commande de lancement
@@ -62,3 +62,4 @@ for proj in $projects; do
   systemctl enable "$svc_name"
   echo "Service $svc_name généré et activé (non démarré)."
 done
+

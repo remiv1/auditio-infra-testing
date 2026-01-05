@@ -72,38 +72,20 @@ class Project():
         """
         return self.__running__
 
-    def get_ssh_cmd(self, stop: bool = False) -> list[str]:
+    def get_ssh_cmd(self, stop: bool = False, restart: bool = False) -> list[str]:
         """
         Génère la commande SSH pour exécuter une commande shell sur l'hôte.
         :param ssh_key: Clé SSH (string)
         :return: Liste des arguments de la commande SSH (list of strings)
         """
-        _folder = os.path.join(PROJECTS_ROOT, self.folder)
-        if not stop:
-            if self.param.get("containerizer") == "podman":
-                shell_cmd = f"cd '{_folder}' && podman compose -f '" \
-                            + f"{self.param.get('specific_compose', 'docker-compose.yml')}' up -d"
-            elif self.param.get("containerizer") == "docker":
-                shell_cmd = f"cd '{_folder}' && docker compose -f '" \
-                            + f"{self.param.get('specific_compose', 'docker-compose.yml')}' up -d"
-            elif self.param.get("containerizer") == "k8s":
-                shell_cmd = f"cd '{_folder}' && kubectl apply -f '" \
-                            + f"{self.param.get('specific_compose', 'k8s-deployment.yml')}'"
-            else:
-                raise HTTPException(status_code=400, detail="Containerizer non supporté")
+        shell_cmd = "sudo systemctl "
+        if stop:
+            shell_cmd += f"stop testing-{self.name}"
+        elif restart:
+            shell_cmd += f"restart testing-{self.name} "
         else:
-            if self.param.get("containerizer") == "podman":
-                shell_cmd = f"cd '{_folder}' && podman compose -f '" \
-                            + f"{self.param.get('specific_compose', 'docker-compose.yml')}' down"
-            elif self.param.get("containerizer") == "docker":
-                shell_cmd = f"cd '{_folder}' && docker compose -f '" \
-                            + f"{self.param.get('specific_compose', 'docker-compose.yml')}' down"
-            elif self.param.get("containerizer") == "k8s":
-                shell_cmd = f"cd '{_folder}' && kubectl delete -f '" \
-                            + f"{self.param.get('specific_compose', 'k8s-deployment.yml')}'"
-            else:
-                raise HTTPException(status_code=400, detail="Containerizer non supporté")
-
+            shell_cmd += f"start testing-{self.name} "
         return [
-            "ssh", "-i", COMMAND["cert"], f"{SSH_USER}@{SSH_HOST}", shell_cmd
+            "ssh", "-i", COMMAND["cert"], "-o", COMMAND["validate"][0], "-o",
+            COMMAND["validate"][1], f"{SSH_USER}@{SSH_HOST}", shell_cmd
         ]

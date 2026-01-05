@@ -7,6 +7,7 @@ Requires=podman.socket
 Type=simple
 User=auditio-test
 WorkingDirectory=/home/auditio-test/auditio-infra-testing
+ExecStartPre=/usr/bin/podman network inspect auditio-net >/dev/null 2>&1 || /usr/bin/podman network create auditio-net
 ExecStartPre=/bin/sleep 5
 ExecStart=podman compose up --build
 Restart=on-failure

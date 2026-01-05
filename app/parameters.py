@@ -14,5 +14,5 @@ COMMAND: Dict[str, Any] = {"cert": "/home/auditio-test/.ssh/api-shutdown-key",
 SSH_USER = getenv("SSH_USER", "auditio-test")
 SSH_HOST = getenv("SSH_HOST", "localhost")
 PROJECTS_JSON = path.expanduser("/app/current_projects.json")
-PROJECTS_ROOT = path.expanduser("~/Projects")
+PROJECTS_ROOT = path.expanduser("/home/auditio-test/Projects")
 TESTING_API_KEY = getenv("TESTING_API_KEY", "default_testing_api_key")

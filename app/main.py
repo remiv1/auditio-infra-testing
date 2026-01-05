@@ -10,7 +10,7 @@ from functions import verify_api_key
 from models import ShutdownResponse
 from logger import logger
 from parameters import COMMAND, SSH_USER, SSH_HOST
-from rout_projects import projects_routeur
+from route_projects import projects_routeur
 
 app = FastAPI(
     title="Testing Server API",
