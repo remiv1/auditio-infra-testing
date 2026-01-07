@@ -3,7 +3,7 @@
 import hashlib
 import os
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import asyncio
 import subprocess
 import httpx
@@ -21,7 +21,7 @@ projects_routeur = APIRouter()
                     tags=["Projects"],
                     responses={200: {"description": "Projet démarré avec succès"},
                                 500: {"description": "Erreur lors du démarrage du projet"}})
-async def start_project(project_name: str, restart: Optional[bool] = False):
+async def start_project(project_name: str):
     """
     Démarrer un projet en utilisant Podman ou Docker Compose ou K8S.
     Nécessite que le projet soit défini dans current_projects.json.
@@ -29,35 +29,9 @@ async def start_project(project_name: str, restart: Optional[bool] = False):
     """
     print(f"Démarrage du projet : {project_name}")
 
-    # Étape 1 : Lancer le script de régénération via SSH
-    ssh_command = [
-        "ssh", f"{SSH_USER}@{SSH_HOST}", "-i", "/home/auditio-test/.ssh/api-shutdown-key",
-        "-o", "UserKnownHostsFile=/dev/null",
-        "-o", "StrictHostKeyChecking=no",
-        "sudo", "/home/auditio-test/auditio-infra-testing/utilitaires/add-network-and-run.sh",
-        project_name
-    ]
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *ssh_command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        print("Sortie standard du script :", stdout.decode())
-        print("Erreur standard du script :", stderr.decode())
-        if process.returncode != 0:
-            raise HTTPException(status_code=500,
-                                detail=f"Erreur lors de l'exécution du script : {stderr.decode()}")
-    except Exception as e:
-        raise HTTPException(status_code=500,
-                            detail=f"Erreur lors de l'exécution du script : {e}") from e
-
-    # Étape 2 : Démarrer le projet
+    # Démarrer le projet
     project_object = Project(project_name=project_name)
-    if not restart:
-        restart = False
-    ssh_command = project_object.get_ssh_cmd(restart=restart)
+    ssh_command = project_object.get_ssh_cmd()
     try:
         process = await asyncio.create_subprocess_exec(
             *ssh_command,
@@ -200,7 +174,8 @@ async def sync_projects(request: Request):
             "ssh", f"{SSH_USER}@{SSH_HOST}", "-i", "/home/auditio-test/.ssh/api-shutdown-key",
             "-o", "UserKnownHostsFile=/dev/null",
             "-o", "StrictHostKeyChecking=no",
-            "sudo", "/home/auditio-test/auditio-infra-testing/utilitaires/rebuild-testing-services.sh"
+            "sudo",
+            "/home/auditio-test/auditio-infra-testing/utilitaires/rebuild-testing-services.sh"
         ]
         process = await asyncio.create_subprocess_exec(
             *ssh_command,
